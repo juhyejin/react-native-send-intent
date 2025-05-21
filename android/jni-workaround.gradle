@@ -1,12 +1,37 @@
 // Gradle 8.3의 JNI 라이브러리 관련 태스크 의존성 문제 해결을 위한 워크어라운드
-gradle.taskGraph.whenReady { taskGraph ->
-    // 모든 copyJniLibs 태스크를 찾아 stripDebugSymbols 태스크와의 의존성 설정
-    taskGraph.allTasks.each { task ->
-        if (task.name.contains('copyReleaseJniLibs') || task.name.contains('copyJniLibs')) {
-            taskGraph.allTasks.each { depTask ->
-                if (depTask.name.contains('stripReleaseDebugSymbols') || depTask.name.contains('stripDebugSymbols')) {
-                    task.dependsOn(depTask)
+gradle.projectsEvaluated {
+    // 모든 프로젝트에 걸쳐 태스크 의존성 설정
+    rootProject.allprojects { project ->
+        project.tasks.withType(com.android.build.gradle.tasks.LibraryJniLibsTask) { copyTask ->
+            project.rootProject.allprojects { p ->
+                p.tasks.withType(com.android.build.gradle.tasks.StripDebugSymbolsTask) { stripTask ->
+                    copyTask.dependsOn(stripTask)
+                    copyTask.mustRunAfter(stripTask)
                 }
+            }
+        }
+    }
+}
+
+gradle.taskGraph.whenReady { taskGraph ->
+    // 명시적으로 RNSendIntentModule 태스크와 react-native-send-intent 태스크 간의 의존성 설정
+    def rnSendIntentModuleTasks = taskGraph.allTasks.findAll { it.path.contains('RNSendIntentModule:copy') && it.path.contains('JniLibs') }
+    def sendIntentStripTasks = taskGraph.allTasks.findAll { it.path.contains('react-native-send-intent:strip') }
+    
+    rnSendIntentModuleTasks.each { copyTask ->
+        sendIntentStripTasks.each { stripTask ->
+            copyTask.dependsOn(stripTask)
+        }
+    }
+    
+    // 일반적인 JNI 태스크 의존성 설정
+    def copyTasks = taskGraph.allTasks.findAll { it.name.contains('copyReleaseJniLibs') || it.name.contains('copyJniLibs') }
+    def stripTasks = taskGraph.allTasks.findAll { it.name.contains('stripReleaseDebugSymbols') || it.name.contains('stripDebugSymbols') }
+    
+    copyTasks.each { copyTask ->
+        stripTasks.each { stripTask ->
+            if (!copyTask.dependsOn.contains(stripTask)) {
+                copyTask.dependsOn(stripTask)
             }
         }
     }

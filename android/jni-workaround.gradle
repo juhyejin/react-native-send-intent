@@ -1,0 +1,13 @@
+// Gradle 8.3의 JNI 라이브러리 관련 태스크 의존성 문제 해결을 위한 워크어라운드
+gradle.taskGraph.whenReady { taskGraph ->
+    // 모든 copyJniLibs 태스크를 찾아 stripDebugSymbols 태스크와의 의존성 설정
+    taskGraph.allTasks.each { task ->
+        if (task.name.contains('copyReleaseJniLibs') || task.name.contains('copyJniLibs')) {
+            taskGraph.allTasks.each { depTask ->
+                if (depTask.name.contains('stripReleaseDebugSymbols') || depTask.name.contains('stripDebugSymbols')) {
+                    task.dependsOn(depTask)
+                }
+            }
+        }
+    }
+} 

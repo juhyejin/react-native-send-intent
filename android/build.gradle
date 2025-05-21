@@ -2,6 +2,9 @@ plugins {
     id 'com.android.library'
 }
 
+// 외부 JNI 워크어라운드 스크립트 적용
+apply from: file("jni-workaround.gradle")
+
 def _ext = rootProject.ext;
 
 def _reactNativeVersion = _ext.has('reactNative') ? _ext.reactNative : '+';
@@ -35,6 +38,20 @@ android {
     tasks.whenTaskAdded { task ->
         if (task.name.contains('processReleaseJavaRes')) {
             task.dependsOn tasks.findAll { it.name.contains('compile') && it.name.contains('Release') }
+        }
+        
+        // JNI 라이브러리 관련 태스크 의존성 설정
+        if (task.name.contains('copyReleaseJniLibs')) {
+            task.dependsOn tasks.findAll { it.name.contains('stripReleaseDebugSymbols') }
+        }
+    }
+}
+
+// 특정 태스크 의존성 설정을 위한 후처리
+afterEvaluate {
+    tasks.matching { it.name.contains('RNSendIntentModule:copyReleaseJniLibsProjectAndLocalJars') }.all { task ->
+        if (tasks.findByPath(':react-native-send-intent:stripReleaseDebugSymbols') != null) {
+            task.dependsOn(':react-native-send-intent:stripReleaseDebugSymbols')
         }
     }
 }

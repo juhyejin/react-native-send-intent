@@ -15,27 +15,4 @@ dependencyResolutionManagement {
         mavenCentral()
         jcenter()
     }
-}
-
-// 외부 모듈에서 이 라이브러리 참조 시 태스크 의존성 설정
-gradle.beforeProject { project ->
-    project.ext.rnsendintent_jni_deps_fixed = false
-    
-    // 프로젝트 평가 후 태스크 간 의존성 설정
-    project.afterEvaluate {
-        if (project.path.contains('RNSendIntentModule') && !project.ext.rnsendintent_jni_deps_fixed) {
-            project.tasks.whenTaskAdded { task ->
-                if (task.name.contains('copyReleaseJniLibs') || task.name.contains('copyJniLibs')) {
-                    // 모든 프로젝트에서 stripDebugSymbols 태스크 찾기
-                    project.rootProject.allprojects { p ->
-                        p.tasks.findAll { it.name.contains('stripReleaseDebugSymbols') || it.name.contains('stripDebugSymbols') }.each { stripTask ->
-                            task.dependsOn(stripTask)
-                            task.mustRunAfter(stripTask)
-                        }
-                    }
-                }
-            }
-            project.ext.rnsendintent_jni_deps_fixed = true
-        }
-    }
 } 

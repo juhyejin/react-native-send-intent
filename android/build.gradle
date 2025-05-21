@@ -2,29 +2,19 @@ plugins {
     id 'com.android.library'
 }
 
-// 외부 JNI 워크어라운드 스크립트 적용
-apply from: file("jni-workaround.gradle")
-
-def _ext = rootProject.ext;
-
-def _reactNativeVersion = _ext.has('reactNative') ? _ext.reactNative : '+';
-def _compileSdkVersion = _ext.has('compileSdkVersion') ? _ext.compileSdkVersion : 33;
-def _minSdkVersion = _ext.has('minSdkVersion') ? _ext.minSdkVersion : 21;
-def _targetSdkVersion = _ext.has('targetSdkVersion') ? _ext.targetSdkVersion : 33;
-
 android {
     namespace "com.burnweb.rnsendintent"
-    compileSdkVersion _compileSdkVersion
+    compileSdk 33
 
     defaultConfig {
-        minSdkVersion _minSdkVersion
-        targetSdkVersion _targetSdkVersion
+        minSdk 21
+        targetSdk 33
         versionCode 28
         versionName "1.3.0"
     }
     
-    lintOptions {
-        abortOnError false
+    buildFeatures {
+        buildConfig false
     }
     
     buildTypes {
@@ -34,59 +24,22 @@ android {
         }
     }
     
-    // 태스크 간 의존성 명시적 설정
-    tasks.whenTaskAdded { task ->
-        if (task.name.contains('processReleaseJavaRes')) {
-            task.dependsOn tasks.findAll { it.name.contains('compile') && it.name.contains('Release') }
-        }
-        
-        // JNI 라이브러리 관련 태스크 의존성 설정
-        if (task.name.contains('copyReleaseJniLibs')) {
-            task.dependsOn tasks.findAll { it.name.contains('stripReleaseDebugSymbols') }
+    publishing {
+        singleVariant("release") {
+            withSourcesJar()
         }
     }
-}
-
-// 특정 태스크 의존성 설정을 위한 후처리
-afterEvaluate {
-    tasks.matching { it.name.contains('RNSendIntentModule:copyReleaseJniLibsProjectAndLocalJars') }.all { task ->
-        if (tasks.findByPath(':react-native-send-intent:stripReleaseDebugSymbols') != null) {
-            task.dependsOn(':react-native-send-intent:stripReleaseDebugSymbols')
-        }
+    
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    
+    lintOptions {
+        abortOnError false
     }
 }
-
-// 외부 프로젝트 태스크 의존성 설정을 위한 gradle 플러그인
-class TaskDependencyPlugin implements Plugin<Project> {
-    void apply(Project project) {
-        project.gradle.taskGraph.whenReady { taskGraph ->
-            def stripTasks = taskGraph.allTasks.findAll { it.name.contains('stripReleaseDebugSymbols') || it.name.contains('stripDebugSymbols') }
-            def copyTasks = taskGraph.allTasks.findAll { it.name.contains('copyReleaseJniLibs') || it.name.contains('copyJniLibs') }
-
-            // 모든 copy 태스크에 대해 모든 strip 태스크에 대한 의존성 추가
-            copyTasks.each { copyTask ->
-                stripTasks.each { stripTask ->
-                    // 기존 종속성이 없는 경우에만 추가
-                    if (!copyTask.dependsOn.contains(stripTask)) {
-                        copyTask.dependsOn(stripTask)
-                    }
-                }
-            }
-            
-            // RNSendIntentModule 특정 의존성 처리
-            def sendIntentStripTask = taskGraph.allTasks.find { it.path == ':react-native-send-intent:stripReleaseDebugSymbols' }
-            def rnSendIntentCopyTask = taskGraph.allTasks.find { it.path == ':RNSendIntentModule:copyReleaseJniLibsProjectAndLocalJars' }
-            
-            if (sendIntentStripTask != null && rnSendIntentCopyTask != null) {
-                rnSendIntentCopyTask.dependsOn(sendIntentStripTask)
-            }
-        }
-    }
-}
-
-// 플러그인 등록 및 적용
-apply plugin: TaskDependencyPlugin
 
 dependencies {
-    implementation "com.facebook.react:react-native:${_reactNativeVersion}"
+    implementation "com.facebook.react:react-native:+"
 } 
